@@ -26,7 +26,7 @@ The printed link will take you to the dask dashboard to monitor the state of you
 
 By default for the Janelia cluster, each worker has 1 core (and 15GB of RAM). You can change this when you create the cluster with `janelia_lsf_cluster(cores=n)`; in which case each worker will have n cores (and n\*15GB RAM).
 
-For the Janelia cluster, by default workers could be put on either cloud or local nodes (whichever is more available according to LSF) and each worker will run for a maximum of 3 hours and 59 minutes. If you want to force a specific queue you can use the 'queue` keyword. For example, if you want to run workers on the short queue (for fast distributed jobs) then you will need: `janelia_lsf_cluster(walltime="1:00", queue="short")`.
+For the Janelia cluster, by default workers could be put on either cloud or local nodes (whichever is more available according to LSF) and each worker will run for a maximum of 3 hours and 59 minutes. If you want to force a specific queue you can use the `queue` keyword. For example, if you want to run workers on the short queue (for fast distributed jobs) then you will need: `janelia_lsf_cluster(walltime="1:00", queue="short")`.
 
 If you need your workers to persist for more than 3 hours and 59 minutes, then you will need to put them in the local queue: `janelia_lsf_cluster(walltime="12:00", queue="local")`. Workers in this example will persist for a maximum of 12 hours.
 
