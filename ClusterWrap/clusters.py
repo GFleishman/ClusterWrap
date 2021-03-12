@@ -86,7 +86,7 @@ class janelia_lsf_cluster(_cluster):
         )
         client = Client(cluster)
         self.set_cluster(cluster)
-        self.set_client(Client(self.cluster))
+        self.set_client(client)
 
 
 class local_cluster(_cluster):
