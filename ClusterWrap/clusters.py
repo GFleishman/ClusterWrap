@@ -3,6 +3,7 @@ from dask_jobqueue import LSFCluster
 import dask.config
 from pathlib import Path
 import os
+import sys
 
 
 class _cluster(object):
@@ -50,6 +51,7 @@ class janelia_lsf_cluster(_cluster):
         # set environment variables for maximum multithreading
         tpw = 2*cores  # threads per worker
         env_extra = [
+            f"export MKL_NUM_THREADS={tpw}",
             f"export NUM_MKL_THREADS={tpw}",
             f"export OPENBLAS_NUM_THREADS={tpw}",
             f"export OPENMP_NUM_THREADS={tpw}",
@@ -70,7 +72,7 @@ class janelia_lsf_cluster(_cluster):
         # set all core/memory related variables
         memory = str(15*cores)+'GB'
         ncpus = cores
-        mem = 15000*cores
+        mem = int(15e9*cores)
 
         # create cluster
         cluster = LSFCluster(
@@ -87,6 +89,8 @@ class janelia_lsf_cluster(_cluster):
         client = Client(cluster)
         self.set_cluster(cluster)
         self.set_client(client)
+        print("Cluster dashboard link: ", cluster.dashboard_link)
+        sys.stdout.flush()
 
 
 class local_cluster(_cluster):
