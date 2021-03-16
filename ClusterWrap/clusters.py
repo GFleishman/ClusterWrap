@@ -4,6 +4,9 @@ import dask.config
 from pathlib import Path
 import os
 import sys
+import time
+
+SCALE_DELAY = 30
 
 
 class _cluster(object):
@@ -16,10 +19,10 @@ class _cluster(object):
         return self
 
     def __exit__(self, type, value, traceback):
-        if self.cluster is not None:
-            self.scale_cluster(0)
         if self.client is not None:
             self.client.close()
+        if self.cluster is not None:
+            self.cluster.close()
 
     def set_cluster(self, cluster):
         self.cluster = cluster
@@ -28,6 +31,10 @@ class _cluster(object):
 
     def scale_cluster(self, nworkers):
         self.cluster.scale(jobs=nworkers)
+        # wait a little whlie for workers
+        print(f"Waiting {SCALE_DELAY} seconds for cluster to scale")
+        time.sleep(SCALE_DELAY)
+        print("Cluster wait time complete")
 
     def modify_dask_config(self, options):
         dask.config.set(options)
