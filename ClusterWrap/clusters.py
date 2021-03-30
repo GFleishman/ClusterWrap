@@ -6,7 +6,7 @@ import os
 import sys
 import time
 
-SCALE_DELAY = 30
+HOURLY_RATE_PER_CORE = 0.07
 
 
 class _cluster(object):
@@ -14,6 +14,9 @@ class _cluster(object):
     def __init__(self):
         self.client = None
         self.cluster = None
+        self.max_workers = None
+        self.scale_delay = 30
+        self.cores = 0
 
     def __enter__(self):
         return self
@@ -30,11 +33,21 @@ class _cluster(object):
         self.client = client
 
     def scale_cluster(self, nworkers):
+
+        # if limited
+        if self.max_workers is not None:
+            nworkers = min(self.max_workers, nworkers)
+
+        # scale
         self.cluster.scale(jobs=nworkers)
-        # wait a little whlie for workers
-        print(f"Waiting {SCALE_DELAY} seconds for cluster to scale")
-        time.sleep(SCALE_DELAY)
-        print("Cluster wait time complete")
+
+        # give feedback and give cluster some time to scale
+        cost = round(nworkers * self.cores * HOURLY_RATE_PER_CORE, 2)
+        print(f"Scaling cluster to {nworkers} workers with {self.cores} cores per worker")
+        print(f"*** This cluster costs {cost} dollars per hour starting now ***")
+        print(f"Waiting {self.scale_delay} seconds for cluster to scale")
+        time.sleep(self.scale_delay)
+        print("Wait time complete")
 
     def modify_dask_config(self, options):
         dask.config.set(options)
@@ -43,17 +56,34 @@ class _cluster(object):
         if self.cluster is not None:
             return self.cluster.dashboard_link
 
+    def set_max_workers(self, max_workers):
+        self.max_workers = max_workers
+
+    def set_scale_delay(self, scale_delay):
+        self.scale_delay = scale_delay
+
 
 class janelia_lsf_cluster(_cluster):
 
     def __init__(
         self,
         cores=1,
-        processes=1,
         walltime="3:59",
-        death_timeout="600s",
+        max_workers=None,
+        scale_delay=None,
+        config=None,
         **kwargs
     ):
+
+        # call super constructor
+        super().__init__()
+
+        # modify config
+        if config is not None:
+            self.modify_dask_config(config)
+
+        # store cores/per worker
+        self.cores = cores
 
         # set environment variables for maximum multithreading
         tpw = 2*cores  # threads per worker
@@ -76,6 +106,14 @@ class janelia_lsf_cluster(_cluster):
             Path(log_dir).mkdir(parents=False, exist_ok=True)
             kwargs["log_directory"] = log_dir
 
+        # set max workers
+        if max_workers is not None:
+            self.set_max_workers(max_workers)
+
+        # set scale delay
+        if scale_delay is not None:
+            self.scale_delay = scale_delay
+
         # set all core/memory related variables
         memory = str(15*cores)+'GB'
         ncpus = cores
@@ -87,9 +125,7 @@ class janelia_lsf_cluster(_cluster):
             ncpus=ncpus,
             memory=memory,
             mem=mem,
-            processes=processes,
             walltime=walltime,
-            death_timeout=death_timeout,
             env_extra=env_extra,
             **kwargs,
         )
