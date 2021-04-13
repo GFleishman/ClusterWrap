@@ -5,8 +5,7 @@ from pathlib import Path
 import os
 import sys
 import time
-
-HOURLY_RATE_PER_CORE = 0.07
+import yaml
 
 
 class _cluster(object):
@@ -14,9 +13,8 @@ class _cluster(object):
     def __init__(self):
         self.client = None
         self.cluster = None
+        self.min_workers = None
         self.max_workers = None
-        self.scale_delay = 30
-        self.cores = 0
 
     def __enter__(self):
         return self
@@ -27,50 +25,53 @@ class _cluster(object):
         if self.cluster is not None:
             self.cluster.close()
 
-    def set_cluster(self, cluster):
-        self.cluster = cluster
+
     def set_client(self, client):
         self.client = client
+    def set_cluster(self, cluster):
+        self.cluster = cluster
 
-    def scale_cluster(self, nworkers):
 
-        # if limited
-        if self.max_workers is not None:
-            nworkers = min(self.max_workers, nworkers)
+    def set_min_workers(self, min_workers):
+        self.min_workers = min_workers
+        self.adapt_cluster(self.min_workers, self.max_workers)
+    def set_max_workers(self, max_workers):
+        self.max_workers = max_workers
+        self.adapt_cluster(self.min_workers, self.max_workers)
 
-        # scale
-        self.cluster.scale(jobs=nworkers)
 
-        # give feedback and give cluster some time to scale
-        cost = round(nworkers * self.cores * HOURLY_RATE_PER_CORE, 2)
-        print(f"Scaling cluster to {nworkers} workers with {self.cores} cores per worker")
-        print(f"*** This cluster costs {cost} dollars per hour starting now ***")
-        print(f"Waiting {self.scale_delay} seconds for cluster to scale")
-        time.sleep(self.scale_delay)
-        print("Wait time complete")
-
-    def modify_dask_config(self, options):
+    def modify_dask_config(
+        self, options, yaml_name='ClusterWrap.yaml',
+    ):
         dask.config.set(options)
+        yaml_path = str(Path.home()) + '/.config/dask/' + yaml_name
+        with open(yaml_path, 'w') as f:
+            yaml.dump(dask.config.config, f, default_flow_style=False)
+
 
     def get_dashboard(self):
         if self.cluster is not None:
             return self.cluster.dashboard_link
 
-    def set_max_workers(self, max_workers):
-        self.max_workers = max_workers
+    def scale_cluster(self, nworkers):
+        None
 
-    def set_scale_delay(self, scale_delay):
-        self.scale_delay = scale_delay
+    def adapt_cluster(self, min_workers=None, max_workers=None):
+        None
+
+
 
 
 class janelia_lsf_cluster(_cluster):
 
+    HOURLY_RATE_PER_CORE = 0.07
+
     def __init__(
         self,
         cores=1,
+        min_workers=1,
+        max_workers=1,
         walltime="3:59",
-        max_workers=None,
-        scale_delay=None,
         config=None,
         **kwargs
     ):
@@ -78,14 +79,27 @@ class janelia_lsf_cluster(_cluster):
         # call super constructor
         super().__init__()
 
-        # modify config
+        # set config defaults
+        # comm values are needed for scaling up big clusters
+        # worker.memory values to prevent costly virtual memory use
+        config_defaults = {
+            'distributed.comm.retry.count':2,
+            'distributed.comm.timeouts.connect':'120s',
+            'distributed.comm.timeouts.tcp':'180s',
+            'distributed.worker.memory.target':False,
+            'distributed.worker.memory.spill':False,
+        }
         if config is not None:
-            self.modify_dask_config(config)
+            config = {**config_defaults, **config}
+        self.modify_dask_config(config)
 
-        # store cores/per worker
+        # store cores/per worker and worker limits
         self.cores = cores
+        self.min_workers = min_workers
+        self.max_workers = max_workers
 
-        # set environment variables for maximum multithreading
+        # set environment vars
+        # prevent overthreading outside dask
         tpw = 2*cores  # threads per worker
         env_extra = [
             f"export MKL_NUM_THREADS={tpw}",
@@ -95,7 +109,7 @@ class janelia_lsf_cluster(_cluster):
             f"export OMP_NUM_THREADS={tpw}",
         ]
 
-        # get/set directories of interest
+        # set local and log directories
         USER = os.environ["USER"]
         CWD = os.getcwd()
         PID = os.getpid()
@@ -106,15 +120,7 @@ class janelia_lsf_cluster(_cluster):
             Path(log_dir).mkdir(parents=False, exist_ok=True)
             kwargs["log_directory"] = log_dir
 
-        # set max workers
-        if max_workers is not None:
-            self.set_max_workers(max_workers)
-
-        # set scale delay
-        if scale_delay is not None:
-            self.scale_delay = scale_delay
-
-        # set all core/memory related variables
+        # compute cores/RAM relationship
         memory = str(15*cores)+'GB'
         ncpus = cores
         mem = int(15e9*cores)
@@ -129,6 +135,9 @@ class janelia_lsf_cluster(_cluster):
             env_extra=env_extra,
             **kwargs,
         )
+        self.adapt_cluster(min_workers, max_workers)
+
+        # connect cluster to client
         client = Client(cluster)
         self.set_cluster(cluster)
         self.set_client(client)
@@ -136,11 +145,50 @@ class janelia_lsf_cluster(_cluster):
         sys.stdout.flush()
 
 
+    def adapt_cluster(self, min_workers=None, max_workers=None):
+
+        # store limits
+        if min_workers is not None:
+            self.min_workers = min_workers
+        if max_workers is not None:
+            self.max_workers = max_workers
+        self.cluster.adapt(
+            minimum_jobs=self.min_workers,
+            maximum_jobs=self.max_workers,
+        )
+
+        # give feedback to user
+        mn, mx cr = self.min_workers, self.max_workers, self.cores  # shorthand
+        cost = round(mx * cr * self.HOURLY_RATE_PER_CORE, 2)
+        print(f"Cluster adapting between {mn} and {mx} workers with {cr} cores per worker")
+        print(f"*** This cluster has an upper bound cost of {cost} dollars per hour ***")
+
+
+    def scale_cluster(self, nworkers):
+
+        # check limit, then scale
+        nworkers = min(self.max_workers, nworkers)
+        self.cluster.scale(jobs=nworkers)
+
+        # give feedback to user
+        cost = round(nworkers * self.cores * self.HOURLY_RATE_PER_CORE, 2)
+        print(f"Scaling cluster to {nworkers} workers with {self.cores} cores per worker")
+        print(f"*** This cluster costs {cost} dollars per hour starting now ***")
+
+
+
+
 class local_cluster(_cluster):
 
     def __init__(self, **kwargs):
+
+        # initialize base class
+        super().__init__()
+
         if "host" not in kwargs:
             kwargs["host"] = ""
         cluster = LocalCluster(**kwargs)
+        client = Client(cluster)
         self.set_cluster(cluster)
+        self.set_client(client)
 
