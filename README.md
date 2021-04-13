@@ -7,24 +7,33 @@ Wrappers around dask-jobqueue functions for specific clusters
 
 ## Usage
 ---
-Clusters are implemented as context managers. This ensures workers are properly shut down either when distributed computing is complete, or if an uncaught exception (error) is thrown during execution. Here is an example for the Janelia cluster:
+ClusterWrap will automatically look for the `bsub` command in your environment. If found it will default to the `janelia_lsf_cluster`, if not found it will default to a `LocalCluster` which should run on your workstation or laptop. Clusters are implemented as context managers. This ensures workers are properly shut down either when distributed computing is complete, or if an uncaught exception (error) is thrown during execution.
+
+For `janelia_lsf_cluster` objects, by default clusters will scale automatically between a minimum and maximum number of workers. However you can also set a fixed number of workers. Here are some examples:
 
 ```python
-from ClusterWrap.clusters import janelia_lsf_cluster
+import ClusterWrap
 
-with janelia_lsf_cluster() as cluster:
-    cluster.scale_cluster(nworkers)
-    print(cluster.get_dashboard())
-    """ Code that utilizes cluster """
+# Start local cluster
+with ClusterWrap.cluster() as cluster:
+    """ Code that utilizes local cluster """
+
+# Start janelia_lsf_cluster that adapts between 1 and 100 workers with 2 cores per worker
+cluster_kwargs = {'min_workers':1, 'max_workers':100, 'cores':2}
+With ClusterWrap.cluster(**cluster_kwargs) as cluster:
+    """ Code that utilizes janelia cluster """
+
+# Start janelia_lsf_cluster with 100 fixed workers
+cluster_kwargs = {'cores':4}
+With ClusterWrap.cluster(**cluster_kwargs) as cluster:
+    cluster.scale_cluster(100)
+    """ Code that utilizes janelia cluster """
+    
 
 """ The cluster shuts down automatically when you exit the with block """
 ```
 
-Typically the first thing you'll do inside your `with` block is create workers. Here `nworkers` is an integer specifying the number of workers your cluster is composed of. `cluster.scale_cluster` can be called more than once to dynamically resize your cluster as your distributed needs change.
-
-The printed link will take you to the dask dashboard to monitor the state of your cluster including any jobs executing on it. The dashboard requires bokeh which does not come with ClusterWrap. If the dashboard does not work you may need to run `pip install bokeh`.
-
-By default for the Janelia cluster, each worker has 1 core (and 15GB of RAM). You can change this when you create the cluster with `janelia_lsf_cluster(cores=n)`; in which case each worker will have n cores (and n\*15GB RAM).
+Within the `with` block you can always change the adaptive scaling bounds with: `cluster.adapt_cluster(min_workers, max_workers)` or set a fixed number of workers with `cluster.scale_cluster(nworkers)`.
 
 For the Janelia cluster, by default workers could be put on either cloud or local nodes (whichever is more available according to LSF) and each worker will run for a maximum of 3 hours and 59 minutes. If you want to force a specific queue you can use the `queue` keyword. For example, if you want to run workers on the short queue (for fast distributed jobs) then you will need: `janelia_lsf_cluster(walltime="1:00", queue="short")`.
 
