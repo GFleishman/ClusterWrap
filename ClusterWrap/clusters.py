@@ -32,14 +32,6 @@ class _cluster(object):
         self.cluster = cluster
 
 
-    def set_min_workers(self, min_workers):
-        self.min_workers = min_workers
-        self.adapt_cluster(self.min_workers, self.max_workers)
-    def set_max_workers(self, max_workers):
-        self.max_workers = max_workers
-        self.adapt_cluster(self.min_workers, self.max_workers)
-
-
     def modify_dask_config(
         self, options, yaml_name='ClusterWrap.yaml',
     ):
@@ -52,9 +44,6 @@ class _cluster(object):
     def get_dashboard(self):
         if self.cluster is not None:
             return self.cluster.dashboard_link
-
-    def scale_cluster(self, nworkers):
-        None
 
     def adapt_cluster(self, min_workers=None, max_workers=None):
         None
@@ -135,7 +124,6 @@ class janelia_lsf_cluster(_cluster):
             env_extra=env_extra,
             **kwargs,
         )
-        self.adapt_cluster(min_workers, max_workers)
 
         # connect cluster to client
         client = Client(cluster)
@@ -143,6 +131,9 @@ class janelia_lsf_cluster(_cluster):
         self.set_client(client)
         print("Cluster dashboard link: ", cluster.dashboard_link)
         sys.stdout.flush()
+
+        # set adaptive cluster bounds
+        self.adapt_cluster(min_workers, max_workers)
 
 
     def adapt_cluster(self, min_workers=None, max_workers=None):
@@ -158,22 +149,10 @@ class janelia_lsf_cluster(_cluster):
         )
 
         # give feedback to user
-        mn, mx cr = self.min_workers, self.max_workers, self.cores  # shorthand
+        mn, mx, cr = self.min_workers, self.max_workers, self.cores  # shorthand
         cost = round(mx * cr * self.HOURLY_RATE_PER_CORE, 2)
         print(f"Cluster adapting between {mn} and {mx} workers with {cr} cores per worker")
         print(f"*** This cluster has an upper bound cost of {cost} dollars per hour ***")
-
-
-    def scale_cluster(self, nworkers):
-
-        # check limit, then scale
-        nworkers = min(self.max_workers, nworkers)
-        self.cluster.scale(jobs=nworkers)
-
-        # give feedback to user
-        cost = round(nworkers * self.cores * self.HOURLY_RATE_PER_CORE, 2)
-        print(f"Scaling cluster to {nworkers} workers with {self.cores} cores per worker")
-        print(f"*** This cluster costs {cost} dollars per hour starting now ***")
 
 
 
