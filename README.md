@@ -18,16 +18,21 @@ import ClusterWrap
 with ClusterWrap.cluster() as cluster:
     """ Code that utilizes local cluster """
 
+
+
 # Start janelia_lsf_cluster that adapts between 1 and 100 workers with 2 cores per worker
 cluster_kwargs = {'min_workers':1, 'max_workers':100, 'cores':2}
 With ClusterWrap.cluster(**cluster_kwargs) as cluster:
     """ Code that utilizes janelia cluster """
+
+
 
 # Start janelia_lsf_cluster with 100 fixed workers
 cluster_kwargs = {'cores':4}
 With ClusterWrap.cluster(**cluster_kwargs) as cluster:
     cluster.scale_cluster(100)
     """ Code that utilizes janelia cluster """
+
     
 
 """ The cluster shuts down automatically when you exit the with block """
