@@ -21,7 +21,7 @@ class _cluster(object):
 
     def __exit__(self, type, value, traceback):
         if self.client is not None:
-            self.client.close()
+            self.client.shutdown()
         if self.cluster is not None:
             self.cluster.close()
 
