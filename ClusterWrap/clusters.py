@@ -13,8 +13,6 @@ class _cluster(object):
     def __init__(self):
         self.client = None
         self.cluster = None
-        self.min_workers = None
-        self.max_workers = None
 
     def __enter__(self):
         return self
@@ -22,6 +20,7 @@ class _cluster(object):
     def __exit__(self, type, value, traceback):
         if self.client is not None:
             self.client.shutdown()
+            self.client.close()
         if self.cluster is not None:
             self.cluster.close()
 
@@ -57,9 +56,10 @@ class janelia_lsf_cluster(_cluster):
 
     def __init__(
         self,
-        cores=1,
+        cores=4,
+        processes=1,
         min_workers=1,
-        max_workers=1,
+        max_workers=4,
         walltime="3:59",
         config=None,
         **kwargs
@@ -69,20 +69,20 @@ class janelia_lsf_cluster(_cluster):
         super().__init__()
 
         # set config defaults
-        # comm values are needed for scaling up big clusters
-        # worker.memory values to prevent costly virtual memory use
+        # comm.timeouts values are needed for scaling up big clusters
+        # worker.memory values prevent costly virtual memory use
         config_defaults = {
-            'distributed.comm.retry.count':2,
             'distributed.comm.timeouts.connect':'120s',
             'distributed.comm.timeouts.tcp':'180s',
-            'distributed.worker.memory.target':False,
             'distributed.worker.memory.spill':False,
+            'distributed.worker.memory.pause':False,
         }
         if config is not None:
             config = {**config_defaults, **config}
         self.modify_dask_config(config)
 
         # store cores/per worker and worker limits
+        self.adapt = None
         self.cores = cores
         self.min_workers = min_workers
         self.max_workers = max_workers
@@ -117,6 +117,7 @@ class janelia_lsf_cluster(_cluster):
         # create cluster
         cluster = LSFCluster(
             cores=cores,
+            processes=processes,
             ncpus=ncpus,
             memory=memory,
             mem=mem,
@@ -136,6 +137,12 @@ class janelia_lsf_cluster(_cluster):
         self.adapt_cluster(min_workers, max_workers)
 
 
+    def __exit__(self, type, value, traceback):
+        if self.adapt is not None:
+            self.adapt.stop()
+        super().__exit__(type, value, traceback)
+        
+
     def adapt_cluster(self, min_workers=None, max_workers=None):
 
         # store limits
@@ -143,7 +150,7 @@ class janelia_lsf_cluster(_cluster):
             self.min_workers = min_workers
         if max_workers is not None:
             self.max_workers = max_workers
-        self.cluster.adapt(
+        self.adapt = self.cluster.adapt(
             minimum_jobs=self.min_workers,
             maximum_jobs=self.max_workers,
         )
