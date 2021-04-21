@@ -70,12 +70,9 @@ class janelia_lsf_cluster(_cluster):
 
         # set config defaults
         # comm.timeouts values are needed for scaling up big clusters
-        # worker.memory values prevent costly virtual memory use
         config_defaults = {
-            'distributed.comm.timeouts.connect':'120s',
-            'distributed.comm.timeouts.tcp':'180s',
-            'distributed.worker.memory.spill':False,
-            'distributed.worker.memory.pause':False,
+            'distributed.comm.timeouts.connect':'180s',
+            'distributed.comm.timeouts.tcp':'360s',
         }
         if config is not None:
             config = {**config_defaults, **config}
