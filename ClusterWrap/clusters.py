@@ -163,13 +163,30 @@ class janelia_lsf_cluster(_cluster):
 
 class local_cluster(_cluster):
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        config=None,
+        memory_limit=None,
+        **kwargs,
+    ):
 
         # initialize base class
         super().__init__()
 
+        # set config defaults
+        # comm.timeouts values are needed for scaling up big clusters
+        config_defaults = {}
+        if config is not None:
+            config = {**config_defaults, **config}
+        self.modify_dask_config(config)
+
+        # set LocalCluster defaults
         if "host" not in kwargs:
             kwargs["host"] = ""
+        if memory_limit is not None:
+            kwargs["memory_limit"] = memory_limit
+
+        # set up cluster, connect scheduler/client
         cluster = LocalCluster(**kwargs)
         client = Client(cluster)
         self.set_cluster(cluster)
