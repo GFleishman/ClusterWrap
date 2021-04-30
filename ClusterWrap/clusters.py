@@ -56,8 +56,9 @@ class janelia_lsf_cluster(_cluster):
 
     def __init__(
         self,
-        cores=4,
+        ncpus=4,
         processes=1,
+        threads=None,
         min_workers=1,
         max_workers=4,
         walltime="3:59",
@@ -78,15 +79,15 @@ class janelia_lsf_cluster(_cluster):
             config = {**config_defaults, **config}
         self.modify_dask_config(config)
 
-        # store cores/per worker and worker limits
+        # store ncpus/per worker and worker limits
         self.adapt = None
-        self.cores = cores
+        self.ncpus = ncpus
         self.min_workers = min_workers
         self.max_workers = max_workers
 
         # set environment vars
         # prevent overthreading outside dask
-        tpw = 2*cores  # threads per worker
+        tpw = 2*ncpus  # threads per worker
         env_extra = [
             f"export MKL_NUM_THREADS={tpw}",
             f"export NUM_MKL_THREADS={tpw}",
@@ -106,19 +107,22 @@ class janelia_lsf_cluster(_cluster):
             Path(log_dir).mkdir(parents=False, exist_ok=True)
             kwargs["log_directory"] = log_dir
 
-        # compute cores/RAM relationship
-        memory = str(15*cores)+'GB'
-        ncpus = cores
-        mem = int(15e9*cores)
+        # compute ncpus/RAM relationship
+        memory = str(15*ncpus)+'GB'
+        mem = int(15e9*ncpus)
+
+        # determine nthreads
+        if threads is None:
+            threads = ncpus
 
         # create cluster
         cluster = LSFCluster(
-            cores=cores,
-            processes=processes,
             ncpus=ncpus,
+            processes=processes,
             memory=memory,
             mem=mem,
             walltime=walltime,
+            cores=threads,
             env_extra=env_extra,
             **kwargs,
         )
@@ -153,9 +157,9 @@ class janelia_lsf_cluster(_cluster):
         )
 
         # give feedback to user
-        mn, mx, cr = self.min_workers, self.max_workers, self.cores  # shorthand
-        cost = round(mx * cr * self.HOURLY_RATE_PER_CORE, 2)
-        print(f"Cluster adapting between {mn} and {mx} workers with {cr} cores per worker")
+        mn, mx, nc = self.min_workers, self.max_workers, self.ncpus  # shorthand
+        cost = round(mx * nc * self.HOURLY_RATE_PER_CORE, 2)
+        print(f"Cluster adapting between {mn} and {mx} workers with {nc} cores per worker")
         print(f"*** This cluster has an upper bound cost of {cost} dollars per hour ***")
 
 
