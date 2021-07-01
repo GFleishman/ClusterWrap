@@ -18,6 +18,11 @@ class _cluster(object):
         return self
 
     def __exit__(self, type, value, traceback):
+
+        if not self.persist_yaml:
+            if os.path.exists(self.yaml_path):
+                os.remove(self.yaml_path)
+
         if self.client is not None:
             self.client.shutdown()
             self.client.close()
@@ -32,12 +37,14 @@ class _cluster(object):
 
 
     def modify_dask_config(
-        self, options, yaml_name='ClusterWrap.yaml',
+        self, options, yaml_name='ClusterWrap.yaml', persist_yaml=False,
     ):
         dask.config.set(options)
         yaml_path = str(Path.home()) + '/.config/dask/' + yaml_name
         with open(yaml_path, 'w') as f:
             yaml.dump(dask.config.config, f, default_flow_style=False)
+        self.yaml_path = yaml_path
+        self.persist_yaml = persist_yaml
 
 
     def get_dashboard(self):
@@ -76,8 +83,8 @@ class janelia_lsf_cluster(_cluster):
             'distributed.comm.timeouts.tcp':'360s',
         }
         if config is not None:
-            config = {**config_defaults, **config}
-        self.modify_dask_config(config)
+            config_defaults = {**config_defaults, **config}
+        self.modify_dask_config(config_defaults)
 
         # store ncpus/per worker and worker limits
         self.adapt = None
