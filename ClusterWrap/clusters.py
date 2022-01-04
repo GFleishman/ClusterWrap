@@ -23,11 +23,11 @@ class _cluster(object):
             if os.path.exists(self.yaml_path):
                 os.remove(self.yaml_path)
 
+        if self.cluster is not None:
+            self.cluster.close()
         if self.client is not None:
             self.client.shutdown()
             self.client.close()
-        if self.cluster is not None:
-            self.cluster.close()
 
 
     def set_client(self, client):
