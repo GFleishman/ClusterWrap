@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="ClusterWrap",
-    version="0.1.7",
+    version="0.2.0",
     author="Greg M. Fleishman",
     author_email="greg.nli10me@gmail.com",
     description="Wrappers around dask-jobqueue functions for specific clusters",

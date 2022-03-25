@@ -1,5 +1,5 @@
 import functools
-import ClusterWrap.cluster as cluster_constructor
+from ClusterWrap import cluster as cluster_constructor
 
 
 def cluster(func):
@@ -19,10 +19,11 @@ def cluster(func):
             # get arguments and run function in cluster context
             x = kwargs['cluster_kwargs'] if 'cluster_kwargs' in kwargs else {}
             with cluster_constructor(**x) as cluster:
-                return func(*args, **kwargs, cluster=cluster)
+                kwargs['cluster'] = cluster
+                return func(*args, **kwargs)
 
         # otherwise, there is already a cluster so just run the function
-        return func(*args, **kwargs, cluster=cluster)
+        return func(*args, **kwargs)
 
     # return decorated function
     return create_or_pass_cluster
