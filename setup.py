@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="ClusterWrap",
-    version="0.2.0",
+    version="0.3.0",
     author="Greg M. Fleishman",
     author_email="greg.nli10me@gmail.com",
     description="Wrappers around dask-jobqueue functions for specific clusters",
@@ -11,9 +11,9 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=[
-        'dask',
-        'dask[distributed]',
-        'dask-jobqueue',
+        'dask>=2022.9.1',
+        'dask[distributed]>=2022.9.1',
+        'dask-jobqueue>=0.7.3',
     ]
 )
 

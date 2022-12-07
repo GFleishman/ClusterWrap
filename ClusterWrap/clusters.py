@@ -1,11 +1,20 @@
 from dask.distributed import Client, LocalCluster
 from dask_jobqueue import LSFCluster
+from dask_jobqueue.lsf import LSFJob
 import dask.config
 from pathlib import Path
 import os
 import sys
 import time
 import yaml
+
+
+# a class to help exit gracefully on our cluster
+class janelia_LSFJob(LSFJob):
+    cancel_command = "bkill -d"
+
+class janelia_LSFCluster(LSFCluster):
+    job_cls = janelia_LSFJob
 
 
 class _cluster(object):
@@ -17,18 +26,13 @@ class _cluster(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):
 
         if not self.persist_yaml:
             if os.path.exists(self.yaml_path):
                 os.remove(self.yaml_path)
-
-        if self.cluster is not None:
-            self.cluster.close()
-        if self.client is not None:
-            self.client.shutdown()
-            self.client.close()
-
+        self.client.close()
+        self.cluster.__exit__(exc_type, exc_value, traceback)
 
     def set_client(self, client):
         self.client = client
@@ -51,9 +55,9 @@ class _cluster(object):
         if self.cluster is not None:
             return self.cluster.dashboard_link
 
-    def adapt_cluster(self, min_workers=None, max_workers=None):
-        None
-
+# TODO: not needed?
+#    def adapt_cluster(self, min_workers=None, max_workers=None):
+#        None
 
 
 
@@ -69,7 +73,7 @@ class janelia_lsf_cluster(_cluster):
         min_workers=1,
         max_workers=4,
         walltime="3:59",
-        config=None,
+        config={},
         **kwargs
     ):
 
@@ -82,8 +86,7 @@ class janelia_lsf_cluster(_cluster):
             'distributed.comm.timeouts.connect':'180s',
             'distributed.comm.timeouts.tcp':'360s',
         }
-        if config is not None:
-            config_defaults = {**config_defaults, **config}
+        config_defaults = {**config_defaults, **config}
         self.modify_dask_config(config_defaults)
 
         # store ncpus/per worker and worker limits
@@ -123,7 +126,7 @@ class janelia_lsf_cluster(_cluster):
             threads = ncpus
 
         # create cluster
-        cluster = LSFCluster(
+        cluster = janelia_LSFCluster(
             ncpus=ncpus,
             processes=processes,
             memory=memory,
@@ -145,10 +148,8 @@ class janelia_lsf_cluster(_cluster):
         self.adapt_cluster(min_workers, max_workers)
 
 
-    def __exit__(self, type, value, traceback):
-        if self.adapt is not None:
-            self.adapt.stop()
-        super().__exit__(type, value, traceback)
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
         
 
     def adapt_cluster(self, min_workers=None, max_workers=None):
@@ -176,7 +177,7 @@ class local_cluster(_cluster):
 
     def __init__(
         self,
-        config=None,
+        config={},
         memory_limit=None,
         **kwargs,
     ):
@@ -185,10 +186,8 @@ class local_cluster(_cluster):
         super().__init__()
 
         # set config defaults
-        # comm.timeouts values are needed for scaling up big clusters
         config_defaults = {}
-        if config is not None:
-            config = {**config_defaults, **config}
+        config = {**config_defaults, **config}
         self.modify_dask_config(config)
 
         # set LocalCluster defaults
@@ -202,4 +201,29 @@ class local_cluster(_cluster):
         client = Client(cluster)
         self.set_cluster(cluster)
         self.set_client(client)
+
+
+
+
+class remote_cluster(_cluster):
+
+    def __init__(
+        self,
+        cluster,  # a dask cluster object, could also be IP address, Cristian what do you prefer?
+        config={},
+    ):
+
+        # initialize base class
+        super().__init__()
+
+        # set config defaults
+        config_defaults = {}
+        config = {**config_defaults, **config}
+        self.modify_dask_config(config)
+
+        # setup client
+        client = Client(cluster)
+        self.set_cluster(cluster)
+        self.set_client(client)
+
 
