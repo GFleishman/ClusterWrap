@@ -98,7 +98,7 @@ class janelia_lsf_cluster(_cluster):
         # set environment vars
         # prevent overthreading outside dask
         tpw = 2*ncpus  # threads per worker
-        env_extra = [
+        job_script_prologue = [
             f"export MKL_NUM_THREADS={tpw}",
             f"export NUM_MKL_THREADS={tpw}",
             f"export OPENBLAS_NUM_THREADS={tpw}",
@@ -133,7 +133,7 @@ class janelia_lsf_cluster(_cluster):
             mem=mem,
             walltime=walltime,
             cores=threads,
-            env_extra=env_extra,
+            job_script_prologue=job_script_prologue,
             **kwargs,
         )
 
