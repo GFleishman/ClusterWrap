@@ -62,6 +62,66 @@ class _cluster(object):
 
 
 class janelia_lsf_cluster(_cluster):
+    """
+    A dask cluster configured to run on the Janelia LSF compute cluster
+
+    Parameters
+    ----------
+    ncpus : int (default: 4)
+        The number of cpus that each lsf worker should have.
+        Of course this also controls total RAM: 15GB per cpu.
+        See `processes` parameter for distinction between lsf worker
+        and dask worker.
+
+    processes : int (default: 1)
+        The number of dask workers that should spawn on each lsf worker.
+        An lsf worker is a set of compute resources allocated by lsf
+        running some number of python processes. Each such python process
+        is a dask worker. By increasing this parameter you increase the
+        number of dask workers running within a single lsf worker.
+
+    threads : int (default: None)
+        The number of compute threads dask is allowed to spawn on each
+        dask worker. Often if you are using numpy or other highly
+        multithreaded code, you do not want dask itself to spawn
+        many additional compute threads. In that case, dask should have
+        one or two compute threads per worker and any additional cpu cores
+        on the worker will be utilized by the underlying multithreaded libraries.
+
+    min_workers : int (default: 1)
+        The minimum number of dask workers the cluster will have at any
+        given time.
+
+    max_workers : int (default 4)
+        The maximum number of dask workers the cluster will have at any
+        given time. The cluster will dynamically adjust the number of
+        workers between `min_workers` and `max_workers` based on the
+        number of tasks submitted by the scheduler.
+
+    walltime : string (default: "3:59")
+        The maximum lifetime of each lsf worker (which comprises one
+        or more dask workers). The default is chosen so that lsf jobs
+        will be submitted to the cloud queue by default, and could thus
+        be run on any available cluster hardware.
+
+    config : dict (default: {})
+        Any additional arguments to configure dask, the distributed
+        scheduler, the nanny etc. See:
+        https://docs.dask.org/en/latest/configuration.html
+
+    **kwargs : any additional keyword argument
+        Additional arguments passed to dask_jobqueue.LSFCluster.
+        Noteable arguments include:
+        death_timeout, project, queue, env_extra
+        See:
+        https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.LSFCluster.html
+        for a more complete list.
+
+    Returns
+    -------
+    A configured janelia_lsf_cluster object ready to receive tasks
+    from a dask scheduler
+    """
 
     HOURLY_RATE_PER_CORE = 0.07
 
@@ -82,7 +142,9 @@ class janelia_lsf_cluster(_cluster):
 
         # set config defaults
         # comm.timeouts values are needed for scaling up big clusters
+        USER = os.environ["USER"]
         config_defaults = {
+            'temporary-directory':f"/scratch/{USER}/",
             'distributed.comm.timeouts.connect':'180s',
             'distributed.comm.timeouts.tcp':'360s',
         }
@@ -107,7 +169,6 @@ class janelia_lsf_cluster(_cluster):
         ]
 
         # set local and log directories
-        USER = os.environ["USER"]
         CWD = os.getcwd()
         PID = os.getpid()
         if "local_directory" not in kwargs:
@@ -150,7 +211,7 @@ class janelia_lsf_cluster(_cluster):
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
-        
+
 
     def adapt_cluster(self, min_workers=None, max_workers=None):
 
