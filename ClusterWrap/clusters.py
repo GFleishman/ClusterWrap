@@ -213,6 +213,21 @@ class janelia_lsf_cluster(_cluster):
         super().__exit__(exc_type, exc_value, traceback)
 
 
+    def change_worker_attributes(
+        self,
+        min_workers,
+        max_workers,
+        **kwargs,
+    ):
+        # TODO: this function is dangerous as written
+        #       should not be used by someone who doesn't know
+        #       what they're doing
+        self.cluster.scale(0)
+        for k, v in kwargs.items():
+            self.cluster.new_spec['options'][k] = v
+        self.adapt_cluster(min_workers, max_workers)
+
+
     def adapt_cluster(self, min_workers=None, max_workers=None):
 
         # store limits
