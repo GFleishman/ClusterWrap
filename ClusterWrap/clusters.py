@@ -238,6 +238,8 @@ class janelia_lsf_cluster(_cluster):
         self.adapt = self.cluster.adapt(
             minimum_jobs=self.min_workers,
             maximum_jobs=self.max_workers,
+            interval='10s',
+            wait_count=6,
         )
 
         # give feedback to user
@@ -250,6 +252,18 @@ class janelia_lsf_cluster(_cluster):
 
 
 class local_cluster(_cluster):
+    """
+    This is a thin wrapper around dask.distributed.LocalCluster
+    For a list of full arguments (how to specify your worker resources)
+    see:
+    https://distributed.dask.org/en/latest/api.html#distributed.LocalCluster
+
+    You need to know how many cpu cores and how much RAM your machine has.
+    Most users will only need to specify:
+    n_workers
+    memory_limit (which is the limit per worker)
+    threads_per_workers (for most workflows this should be 1)
+    """
 
     def __init__(
         self,
