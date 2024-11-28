@@ -1,6 +1,5 @@
 import functools
-from ClusterWrap import cluster as cluster_constructor
-
+from ClusterWrap.clusters import clusters
 
 def cluster(func):
     """
@@ -15,6 +14,12 @@ def cluster(func):
 
         # if there is no cluster, make one
         if cluster is None:
+
+            # get cluster type
+            assert ('cluster_type' in kwargs['cluster_kwargs'].keys()),
+                "cluster_type must be defined in cluster_kwargs"
+            cluster_constructor = clusters[kwargs['cluster_kwargs']['cluster_type']]
+            del kwargs['cluster_kwargs']['cluster_type']
 
             # get arguments and run function in cluster context
             x = kwargs['cluster_kwargs'] if 'cluster_kwargs' in kwargs else {}
