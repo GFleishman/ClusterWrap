@@ -10,12 +10,6 @@ import yaml
 
 
 
-clusters = {
-    'local_cluster':local_cluster,
-    'remote_cluster':remote_cluster,
-    'janelia_lsf_cluster':janelia_lsf_cluster,
-    'lancaster_slurm_cluster':lancaster_slurm_cluster,
-}
 
 
 class _cluster(object):
@@ -139,7 +133,7 @@ class lancaster_slurm_cluster(_cluster):
         scratch_dir = f"/{SCRATCH}/{USER}/"
         Path(scratch_dir).mkdir(parents=False, exist_ok=True)
         config_defaults = {
-            'temporary-directory':scratch_dir
+            'temporary-directory':scratch_dir,
             'distributed.comm.timeouts.connect':'180s',
             'distributed.comm.timeouts.tcp':'360s',
         }
@@ -494,4 +488,11 @@ class remote_cluster(_cluster):
         self.set_cluster(cluster)
         self.set_client(client)
 
+
+clusters = {
+    'local_cluster':local_cluster,
+    'remote_cluster':remote_cluster,
+    'janelia_lsf_cluster':janelia_lsf_cluster,
+    'lancaster_slurm_cluster':lancaster_slurm_cluster,
+}
 
