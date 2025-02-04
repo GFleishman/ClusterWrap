@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="ClusterWrap",
-    version="1.0.0",
+    version="1.0.1",
     author="Greg M. Fleishman",
     author_email="greg.nli10me@gmail.com",
     description="Local machine and specific HPC cluster implementations",
